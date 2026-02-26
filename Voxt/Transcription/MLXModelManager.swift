@@ -18,7 +18,14 @@ class MLXModelManager: ObservableObject {
 
     enum ModelState: Equatable {
         case notDownloaded
-        case downloading(progress: Double, completed: Int64, total: Int64)
+        case downloading(
+            progress: Double,
+            completed: Int64,
+            total: Int64,
+            currentFile: String?,
+            completedFiles: Int,
+            totalFiles: Int
+        )
         case downloaded
         case loading
         case ready
@@ -40,9 +47,14 @@ class MLXModelManager: ObservableObject {
             description: "Balanced quality and speed with low memory use."
         ),
         ModelOption(
-            id: "mlx-community/Qwen3-ASR-1.7B-4bit",
-            title: "Qwen3-ASR 1.7B (4bit)",
-            description: "Higher accuracy, heavier on memory."
+            id: "mlx-community/Qwen3-ASR-1.7B-bf16",
+            title: "Qwen3-ASR 1.7B (bf16)",
+            description: "High accuracy flagship model with higher memory usage."
+        ),
+        ModelOption(
+            id: "mlx-community/Voxtral-Mini-4B-Realtime-2602-fp16",
+            title: "Voxtral Realtime Mini 4B (fp16)",
+            description: "Realtime-oriented model with larger memory footprint."
         ),
         ModelOption(
             id: "mlx-community/parakeet-tdt-0.6b-v3",
@@ -78,6 +90,7 @@ class MLXModelManager: ObservableObject {
     private var sizeTask: Task<Void, Never>?
     private var downloadTempDir: URL?
     private let downloadSizeTolerance: Double = 0.9
+    private let downloadRetryLimit = 3
 
     init(modelRepo: String, hubBaseURL: URL = MLXModelManager.defaultHubBaseURL) {
         self.modelRepo = Self.canonicalModelRepo(modelRepo)
@@ -137,7 +150,14 @@ class MLXModelManager: ObservableObject {
         downloadTask = Task { [weak self] in
             guard let self else { return }
             defer { downloadTask = nil }
-            state = .downloading(progress: 0, completed: 0, total: 0)
+            setDownloadingState(
+                progress: 0,
+                completed: 0,
+                total: 0,
+                currentFile: nil,
+                completedFiles: 0,
+                totalFiles: 0
+            )
             do {
                 guard let repoID = Repo.ID(rawValue: modelRepo) else {
                     state = .error("Invalid model identifier")
@@ -154,7 +174,7 @@ class MLXModelManager: ObservableObject {
                     token: token,
                     userAgent: Self.hubUserAgent
                 )
-                print("[Voxt] Model download transport: LFS-only (\(hubBaseURL.absoluteString))")
+                VoxtLog.info("Model download transport: LFS-only (\(hubBaseURL.absoluteString))")
                 let resolvedCache = client.cache ?? cache
                 let modelDir = try await resolveOrDownloadModelUsingLFS(
                     client: client,
@@ -170,14 +190,14 @@ class MLXModelManager: ObservableObject {
                     fileManager: .default
                 )
                 checkExistingModel()
-                print("[Voxt] Download finalize state: \(state.debugLabel)")
+                VoxtLog.info("Download complete.")
             } catch is CancellationError {
                 cleanupPartialDownload()
                 state = .notDownloaded
             } catch {
                 clearCurrentRepoHubCache()
                 state = .error(downloadErrorMessage(for: error))
-                print("[Voxt] Download error: \(error.localizedDescription)")
+                VoxtLog.error("Download error: \(error.localizedDescription)")
             }
         }
     }
@@ -234,6 +254,13 @@ class MLXModelManager: ObservableObject {
 
     private static func loadSTTModel(for repo: String) async throws -> any STTGenerationModel {
         let lower = repo.lowercased()
+        if lower.contains("forcedaligner") {
+            throw NSError(
+                domain: "MLXModelManager",
+                code: 1001,
+                userInfo: [NSLocalizedDescriptionKey: "Qwen3-ForcedAligner is alignment-only and not supported by Voxt transcription."]
+            )
+        }
         if lower.contains("glmasr") || lower.contains("glm-asr") {
             return try await GLMASRModel.fromPretrained(repo)
         }
@@ -310,35 +337,57 @@ class MLXModelManager: ObservableObject {
         try MLXModelDownloadSupport.clearDirectory(at: tempDir, fileManager: .default)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
-        print("[Voxt] Fetching model entries: \(repoID.description)")
+        VoxtLog.info("Fetching model entries: \(repoID.description)")
         let entries = try await MLXModelDownloadSupport.fetchModelEntries(
             repo: repoID.description,
             baseURL: hubBaseURL,
             session: session,
             userAgent: Self.hubUserAgent
         )
-        print("[Voxt] Entry count: \(entries.count)")
+        VoxtLog.info("Entry count: \(entries.count)")
         guard !entries.isEmpty else {
             throw MLXModelDownloadSupport.DownloadValidationError.emptyFileList
         }
         let totalBytes = max(entries.reduce(Int64(0)) { partial, entry in
             partial + max(entry.size ?? 0, 0)
         }, 1)
+        let totalFiles = entries.count
         var completedBytes: Int64 = 0
 
-        for entry in entries {
-            let progress = Progress(totalUnitCount: max(entry.size ?? 1, 1))
-            print("[Voxt] Download start: \(entry.path) (size=\(entry.size ?? -1))")
+        for (index, entry) in entries.enumerated() {
+            let completedFiles = index
+            let expectedEntryBytes = max(entry.size ?? 0, 0)
+            let progress = Progress(totalUnitCount: max(expectedEntryBytes, 1))
+            let baseCompletedBytes = completedBytes
+            let beforeFraction = totalBytes > 0 ? Double(completedBytes) / Double(totalBytes) : 0
+            setDownloadingState(
+                progress: min(1, beforeFraction),
+                completed: min(completedBytes, totalBytes),
+                total: totalBytes,
+                currentFile: entry.path,
+                completedFiles: completedFiles,
+                totalFiles: totalFiles
+            )
+            VoxtLog.info("Download start: \(entry.path) (size=\(entry.size ?? -1))", verbose: true)
+
             let sampler = Task { [weak self] in
+                let startTime = Date()
                 while !Task.isCancelled {
-                    let currentCompleted = completedBytes + progress.completedUnitCount
-                    let total = max(totalBytes, currentCompleted)
-                    let fraction = total > 0 ? Double(currentCompleted) / Double(total) : 0
+                    let effectiveInFlight = Self.inFlightBytes(
+                        progress: progress,
+                        expectedEntryBytes: expectedEntryBytes,
+                        startTime: startTime
+                    )
+                    let currentCompleted = min(baseCompletedBytes + effectiveInFlight, totalBytes)
+                    let fraction = totalBytes > 0 ? Double(currentCompleted) / Double(totalBytes) : 0
                     await MainActor.run {
-                        self?.state = .downloading(
+                        self?.setDownloadingState(
                             progress: min(1, fraction),
-                            completed: min(currentCompleted, total),
-                            total: total
+                            completed: currentCompleted,
+                            total: totalBytes,
+                            currentFile: entry.path,
+                            completedFiles: completedFiles,
+                            totalFiles: totalFiles
                         )
                     }
                     try? await Task.sleep(for: .milliseconds(200))
@@ -346,40 +395,146 @@ class MLXModelManager: ObservableObject {
             }
             defer { sampler.cancel() }
 
-            _ = try await client.downloadFile(
-                at: entry.path,
-                from: repoID,
-                to: tempDir,
-                kind: .model,
-                revision: "main",
-                progress: progress,
-                transport: .lfs,
-                localFilesOnly: false
+            try await downloadEntryWithRetry(
+                client: client,
+                entryPath: entry.path,
+                repoID: repoID,
+                tempDir: tempDir,
+                progress: progress
             )
-            print("[Voxt] Download done: \(entry.path)")
-            let delta = max(entry.size ?? progress.completedUnitCount, progress.completedUnitCount)
+            VoxtLog.info("Download done: \(entry.path)", verbose: true)
+            let delta = max(expectedEntryBytes, max(progress.completedUnitCount, 0))
             completedBytes += max(delta, 0)
+            let finishedFiles = completedFiles + 1
             let fraction = totalBytes > 0 ? Double(completedBytes) / Double(totalBytes) : 1
-            state = .downloading(
+            setDownloadingState(
                 progress: min(1, fraction),
                 completed: min(completedBytes, totalBytes),
-                total: totalBytes
+                total: totalBytes,
+                currentFile: nil,
+                completedFiles: finishedFiles,
+                totalFiles: totalFiles
+            )
+            VoxtLog.info(
+                "Download progress: files=\(finishedFiles)/\(totalFiles), bytes=\(min(completedBytes, totalBytes))/\(totalBytes)",
+                verbose: true
             )
         }
 
-        print("[Voxt] Validating downloaded files...")
+        VoxtLog.info("Validating downloaded files...", verbose: true)
         try MLXModelDownloadSupport.validateDownloadedModel(
             at: tempDir,
             sizeState: sizeState,
             downloadSizeTolerance: downloadSizeTolerance,
             fileManager: .default
         )
-        print("[Voxt] Moving downloaded files into final cache...")
+        VoxtLog.info("Moving downloaded files into final cache...", verbose: true)
         try MLXModelDownloadSupport.clearDirectory(at: modelDir, fileManager: .default)
         try FileManager.default.moveItem(at: tempDir, to: modelDir)
         downloadTempDir = nil
-        print("[Voxt] Download files moved to final cache.")
+        VoxtLog.info("Download files moved to final cache.", verbose: true)
         return modelDir
+    }
+
+    private func downloadEntryWithRetry(
+        client: HubClient,
+        entryPath: String,
+        repoID: Repo.ID,
+        tempDir: URL,
+        progress: Progress
+    ) async throws {
+        var attempt = 0
+        while true {
+            do {
+                _ = try await client.downloadFile(
+                    at: entryPath,
+                    from: repoID,
+                    to: tempDir,
+                    kind: .model,
+                    revision: "main",
+                    progress: progress,
+                    transport: .lfs,
+                    localFilesOnly: false
+                )
+                return
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                attempt += 1
+                guard attempt <= downloadRetryLimit, isRetryableDownloadError(error) else {
+                    throw error
+                }
+                let delayMs = Int(pow(2.0, Double(attempt - 1)) * 800.0)
+                VoxtLog.warning("Download retry \(attempt)/\(downloadRetryLimit): \(entryPath) (\(error.localizedDescription))")
+                try? await Task.sleep(for: .milliseconds(delayMs))
+            }
+        }
+    }
+
+    private func setDownloadingState(
+        progress: Double,
+        completed: Int64,
+        total: Int64,
+        currentFile: String?,
+        completedFiles: Int,
+        totalFiles: Int
+    ) {
+        state = .downloading(
+            progress: progress,
+            completed: completed,
+            total: total,
+            currentFile: currentFile,
+            completedFiles: completedFiles,
+            totalFiles: totalFiles
+        )
+    }
+
+    private static func inFlightBytes(
+        progress: Progress,
+        expectedEntryBytes: Int64,
+        startTime: Date
+    ) -> Int64 {
+        let reported = max(progress.completedUnitCount, 0)
+        guard reported == 0 else { return reported }
+
+        let elapsed = Date().timeIntervalSince(startTime)
+        let expectedForTenMinutes = Double(expectedEntryBytes) / (10 * 60)
+        let fallbackRate = max(expectedForTenMinutes, 256 * 1024)
+        let estimated = Int64(elapsed * fallbackRate)
+        let cap = Int64(Double(expectedEntryBytes) * 0.95)
+        return min(max(estimated, 0), max(cap, 0))
+    }
+
+    private func isRetryableDownloadError(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cancelled,
+                 .timedOut,
+                 .networkConnectionLost,
+                 .notConnectedToInternet,
+                 .cannotFindHost,
+                 .cannotConnectToHost,
+                 .dnsLookupFailed,
+                 .resourceUnavailable,
+                 .cannotLoadFromNetwork:
+                return true
+            default:
+                return false
+            }
+        }
+
+        if let httpError = error as? HTTPClientError {
+            switch httpError {
+            case .requestError, .unexpectedError:
+                return true
+            case .responseError(let response, _):
+                return response.statusCode >= 500 || response.statusCode == 429 || response.statusCode == 408
+            case .decodingError:
+                return false
+            }
+        }
+
+        return false
     }
 
     private func downloadErrorMessage(for error: Error) -> String {
@@ -428,25 +583,6 @@ class MLXModelManager: ObservableObject {
     private func clearCurrentRepoHubCache() {
         guard let repoID = Repo.ID(rawValue: modelRepo) else { return }
         clearHubCache(for: repoID)
-    }
-}
-
-private extension MLXModelManager.ModelState {
-    var debugLabel: String {
-        switch self {
-        case .notDownloaded:
-            return "notDownloaded"
-        case .downloading(let progress, let completed, let total):
-            return "downloading(progress=\(progress), completed=\(completed), total=\(total))"
-        case .downloaded:
-            return "downloaded"
-        case .loading:
-            return "loading"
-        case .ready:
-            return "ready"
-        case .error(let message):
-            return "error(\(message))"
-        }
     }
 }
 

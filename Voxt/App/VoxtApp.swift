@@ -172,8 +172,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         if let window = settingsWindowController?.window {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            centerAndBringWindowToFront(window)
             return
         }
 
@@ -195,11 +194,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.toolbar = nil
         window.contentViewController = hostingController
         window.isReleasedWhenClosed = false
+        window.level = .normal
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
-        NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
+        centerAndBringWindowToFront(window)
+    }
+
+    private func bringWindowToFront(_ window: NSWindow) {
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    private func centerAndBringWindowToFront(_ window: NSWindow) {
+        window.center()
+        bringWindowToFront(window)
+
+        DispatchQueue.main.async { [weak window] in
+            guard let window else { return }
+            window.center()
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        }
     }
 
     private func setupHotkey() {
@@ -216,11 +235,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !isSessionActive else { return }
 
         if transcriptionEngine == .mlxAudio {
-            let modelState = mlxModelManager.state
-            if case .notDownloaded = modelState {
-                print("MLX Audio model not downloaded, falling back to Direct Dictation")
-            } else if case .error = modelState {
-                print("MLX Audio model error, falling back to Direct Dictation")
+            switch mlxModelManager.state {
+            case .notDownloaded:
+                VoxtLog.warning("MLX Audio model not downloaded, falling back to Direct Dictation")
+            case .error:
+                VoxtLog.warning("MLX Audio model error, falling back to Direct Dictation")
+            default:
+                break
             }
         }
 
@@ -258,8 +279,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func processTranscription(_ rawText: String) {
         setEnhancingState(false)
-        let snippet = String(rawText.prefix(80))
-        print("[Voxt] processTranscription: chars=\(rawText.count), snippet=\(snippet)")
 
         guard !rawText.isEmpty else {
             finishSession()
@@ -288,7 +307,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.typeText(rawText)
                 }
             } catch {
-                print("AI enhancement failed, using raw text: \(error)")
+                VoxtLog.error("AI enhancement failed, using raw text: \(error)")
                 self.typeText(rawText)
             }
         }
@@ -298,21 +317,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         let previous = pasteboard.string(forType: .string) ?? ""
-        let frontApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown"
         let accessibilityTrusted = AXIsProcessTrusted()
-        print("[Voxt] typeText: chars=\(text.count), frontApp=\(frontApp), accessibilityTrusted=\(accessibilityTrusted)")
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
         guard accessibilityTrusted else {
             promptForAccessibilityPermission()
-            print("[Voxt] Accessibility permission missing. Transcription has been copied; paste manually after granting permission.")
+            VoxtLog.warning("Accessibility permission missing. Transcription copied; paste manually after granting permission.")
             return
         }
 
         guard let source = CGEventSource(stateID: .hidSystemState) else {
-            print("[Voxt] typeText failed: unable to create CGEventSource")
+            VoxtLog.error("typeText failed: unable to create CGEventSource")
             return
         }
 
@@ -323,7 +340,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         cmdUp?.flags = .maskCommand
 
         guard cmdDown != nil, cmdUp != nil else {
-            print("[Voxt] typeText failed: unable to create key events")
+            VoxtLog.error("typeText failed: unable to create key events")
             return
         }
 

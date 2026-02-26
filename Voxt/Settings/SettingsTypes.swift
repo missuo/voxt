@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case appearance
     case model
     case hotkey
     case about
@@ -10,7 +9,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .appearance: return "Appearance"
         case .model: return "Model"
         case .hotkey: return "Hotkey"
         case .about: return "About"
@@ -19,7 +17,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
-        case .appearance: return "paintbrush"
         case .model: return "waveform"
         case .hotkey: return "keyboard"
         case .about: return "info.circle"

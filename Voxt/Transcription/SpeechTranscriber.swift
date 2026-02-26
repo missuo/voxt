@@ -49,7 +49,7 @@ class SpeechTranscriber: ObservableObject, TranscriberProtocol {
             try startSpeechRecognition(recognizer: recognizer)
             isRecording = true
         } catch {
-            print("Failed to start recording: \(error)")
+            VoxtLog.error("Speech transcriber start recording failed: \(error)")
             cleanupSessionState()
         }
     }
@@ -152,7 +152,7 @@ class SpeechTranscriber: ObservableObject, TranscriberProtocol {
             if let error {
                 let nsError = error as NSError
                 if nsError.domain != "kAFAssistantErrorDomain" || (nsError.code != 216 && nsError.code != 1110) {
-                    print("Recognition error: \(error)")
+                    VoxtLog.error("Speech recognition error: \(error)")
                 }
 
                 Task { @MainActor in

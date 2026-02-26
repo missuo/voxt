@@ -57,7 +57,7 @@ enum MLXModelDownloadSupport {
 
     static func makeDownloadSession(for baseURL: URL) -> URLSession {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForRequest = 120
         configuration.timeoutIntervalForResource = 60 * 60
         configuration.waitsForConnectivity = false
 

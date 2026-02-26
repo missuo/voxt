@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var mlxModelManager: MLXModelManager
-    @State private var selectedTab: SettingsTab = .appearance
+    @State private var selectedTab: SettingsTab = .model
     @State private var hostWindow: NSWindow?
 
     var body: some View {
@@ -14,8 +14,6 @@ struct SettingsView: View {
             ScrollView {
                 Group {
                     switch selectedTab {
-                    case .appearance:
-                        AppearanceSettingsView()
                     case .model:
                         ModelSettingsView(mlxModelManager: mlxModelManager)
                     case .hotkey:
@@ -25,7 +23,7 @@ struct SettingsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 22)
                 .padding(.top, 10)
                 .padding(.bottom, 16)
             }
@@ -60,25 +58,25 @@ private struct SettingsTabHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(SettingsTab.allCases) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    VStack(spacing: 4) {
+                ZStack {
+                    (tab == selectedTab ? Color.primary.opacity(0.08) : Color.clear)
+                    HStack(spacing: 8) {
                         Image(systemName: tab.iconName)
                             .font(.system(size: 14, weight: .semibold))
                         Text(tab.title)
                             .font(.caption)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .foregroundStyle(tab == selectedTab ? .primary : .secondary)
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-                .background(tab == selectedTab ? Color.primary.opacity(0.08) : Color.clear)
+                .onTapGesture {
+                    selectedTab = tab
+                }
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 54)
+        .frame(height: 40)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }

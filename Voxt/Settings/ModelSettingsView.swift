@@ -30,8 +30,6 @@ struct ModelSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SettingsSectionHeader(title: "Transcription")
-
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Engine")
@@ -194,7 +192,7 @@ struct ModelSettingsView: View {
                 .controlSize(.small)
             }
 
-        case .downloading(let progress, let completed, let total):
+        case .downloading(let progress, let completed, let total, let currentFile, let completedFiles, let totalFiles):
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     ProgressView(value: progress)
@@ -210,6 +208,9 @@ struct ModelSettingsView: View {
                     .controlSize(.small)
                 }
                 Text(downloadProgressText(completed: completed, total: total))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(downloadFileProgressText(currentFile: currentFile, completedFiles: completedFiles, totalFiles: totalFiles))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -300,6 +301,15 @@ struct ModelSettingsView: View {
             return "Downloaded: \(completedText) / \(totalText)"
         }
         return "Downloaded: \(completedText)"
+    }
+
+    private func downloadFileProgressText(currentFile: String?, completedFiles: Int, totalFiles: Int) -> String {
+        let filesText = totalFiles > 0 ? "\(completedFiles)/\(totalFiles) files" : "\(completedFiles) files"
+        guard let currentFile, !currentFile.isEmpty else {
+            return "Preparing download... (\(filesText))"
+        }
+        let fileName = (currentFile as NSString).lastPathComponent
+        return "Downloading: \(fileName) (\(filesText))"
     }
 
     private func startModelDownload(resetExisting: Bool = false) {

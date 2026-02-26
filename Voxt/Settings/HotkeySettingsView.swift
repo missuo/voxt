@@ -48,8 +48,6 @@ struct HotkeySettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SettingsSectionHeader(title: "Hotkey")
-
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Shortcut")

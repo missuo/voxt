@@ -3,8 +3,6 @@ import SwiftUI
 struct AboutSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SettingsSectionHeader(title: "About")
-
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Voxt")

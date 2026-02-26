@@ -34,7 +34,7 @@ class HotkeyManager {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            print("[HotkeyManager] Failed to create event tap. Grant Accessibility permission.")
+            VoxtLog.error("Failed to create event tap. Grant Accessibility permission.")
             return
         }
 
