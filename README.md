@@ -16,12 +16,14 @@ The app lives entirely in the menu bar with no Dock icon. The only UI during use
 
 ## Features
 
-- **MLX Audio speech engine** -- on-device speech-to-text using MLX Audio models (Qwen3-ASR, Parakeet, GLM-ASR)
+- **MLX Audio speech engine** -- on-device speech-to-text using MLX Audio models
 - **Optional Apple Dictation fallback** -- zero-setup speech recognition via `SFSpeechRecognizer`
 - **Apple Intelligence enhancement** -- optionally post-process transcriptions with on-device Foundation Models to fix grammar, punctuation, and formatting (macOS 26.0+)
 - **Global push-to-talk hotkey** -- works from any app without switching focus
 - **Animated waveform overlay** -- floating non-activating panel with real-time audio level bars and scrolling transcription text
 - **Clipboard-safe** -- saves and restores your clipboard contents around each paste
+- **Model download manager** -- one-click model download, byte/file progress, retry handling, and local cache validation
+- **China mirror support** -- optional Hugging Face mirror download (`https://hf-mirror.com`) from Settings
 
 ## Tech stack
 
@@ -31,6 +33,33 @@ The app lives entirely in the menu bar with no Dock icon. The only UI during use
 - **Foundation Models** -- Apple Intelligence on-device LLM for text enhancement
 - **CGEvent** -- global hotkey detection via a low-level event tap
 - **Combine** -- reactive state bridging between transcription engines and the UI
+
+## Supported MLX STT models
+
+Current selectable models in Voxt:
+
+- `mlx-community/Qwen3-ASR-0.6B-4bit`
+- `mlx-community/Qwen3-ASR-1.7B-bf16`
+- `mlx-community/Voxtral-Mini-4B-Realtime-2602-fp16`
+- `mlx-community/parakeet-tdt-0.6b-v3`
+- `mlx-community/GLM-ASR-Nano-2512-4bit`
+
+> Note: `Qwen3-ForcedAligner` is alignment-oriented and is not used by Voxt’s real-time transcription pipeline.
+
+## Settings
+
+Voxt provides three tabs in Settings:
+
+- **Model**
+  - Select transcription engine (`MLX Audio` or `Direct Dictation`)
+  - Choose MLX model and view estimated download size
+  - Download / cancel / remove model with progress feedback
+  - Toggle China mirror (`hf-mirror.com`)
+  - Configure Apple Intelligence enhancement prompt
+- **Hotkey**
+  - Configure the global push-to-talk shortcut
+- **About**
+  - App metadata and version information
 
 ## Requirements
 
@@ -42,6 +71,12 @@ The app lives entirely in the menu bar with no Dock icon. The only UI during use
 ## Building
 
 Open `Voxt.xcodeproj` in Xcode and build. MLX Audio Swift is resolved automatically via Swift Package Manager.
+
+Or build from terminal:
+
+```bash
+xcodebuild -project Voxt.xcodeproj -scheme Voxt -destination 'platform=macOS' build
+```
 
 ## License
 
