@@ -6,6 +6,11 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-03-01
+
+### Fixed
+- Added a close action for the in-app update dialog so users can dismiss it.
+
 ## [1.1.4] - 2026-03-01
 
 ### Added
