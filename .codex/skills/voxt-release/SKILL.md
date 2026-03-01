@@ -22,6 +22,7 @@ It is used when the user asks to:
 2. Follow the local release flow (no auto GitHub release workflow is used).
 3. Keep `CHANGELOG.md`, `build/release/artifacts/*`, and `updates/appcast.json` consistent.
 4. Mandatory before build: `CHANGELOG.md` must include a new release section for the target version.
+5. Create/push git tag and publish GitHub release assets when shipping.
 
 ## Required Inputs
 
@@ -86,16 +87,33 @@ git add CHANGELOG.md updates/appcast.json
 git commit -m "release: v1.2.3"
 ```
 
-### Step 5 — Optional manual GitHub release
+### Step 5 — Publish GitHub release
 
-- Create and push tag if you need a GitHub tag page:
+1. Create and push git tag:
 
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
 ```
 
-- Upload `build/release/artifacts/*` manually.
+2. Publish release and upload artifacts:
+
+```bash
+gh release create v1.2.3 \
+  --title "v1.2.3" \
+  --notes "Release 1.2.3" \
+  build/release/artifacts/Voxt-1.2.3.app.zip \
+  build/release/artifacts/Voxt-1.2.3.pkg
+```
+
+If the release already exists:
+
+```bash
+gh release upload v1.2.3 \
+  build/release/artifacts/Voxt-1.2.3.app.zip \
+  build/release/artifacts/Voxt-1.2.3.pkg \
+  --clobber
+```
 
 ## Validation checklist
 
