@@ -20,6 +20,7 @@ struct ModelSettingsView: View {
 
     @ObservedObject var mlxModelManager: MLXModelManager
     @ObservedObject var customLLMManager: CustomLLMModelManager
+    @State private var showMirrorInfo = false
 
     private var selectedEngine: TranscriptionEngine {
         TranscriptionEngine(rawValue: engineRaw) ?? .mlxAudio
@@ -179,39 +180,41 @@ struct ModelSettingsView: View {
             Text("Model")
                 .font(.subheadline.weight(.medium))
 
-            Picker("Model", selection: $modelRepo) {
-                ForEach(MLXModelManager.availableModels) { model in
-                    Text(model.title).tag(model.id)
+            HStack(alignment: .center, spacing: 12) {
+                Picker("Model", selection: $modelRepo) {
+                    ForEach(MLXModelManager.availableModels) { model in
+                        Text(model.title).tag(model.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(maxWidth: 260, alignment: .leading)
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Toggle("Use China mirror", isOn: $useHfMirror)
+                        .toggleStyle(.switch)
+
+                    Button {
+                        showMirrorInfo.toggle()
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showMirrorInfo, arrowEdge: .top) {
+                        Text("https://hf-mirror.com/")
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                    }
                 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(maxWidth: 260, alignment: .leading)
 
-            if let model = MLXModelManager.availableModels.first(where: { $0.id == modelRepo }) {
-                Text(model.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 6) {
-                Text("Selected model size:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(sizeText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Toggle(isOn: $useHfMirror) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Use China mirror")
-                    Text("Download from https://hf-mirror.com/")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .toggleStyle(.switch)
+            Text(modelLocalizedDescription(for: modelRepo))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
 
         mlxModelTable
@@ -379,19 +382,6 @@ struct ModelSettingsView: View {
         }
     }
 
-    private var sizeText: String {
-        switch mlxModelManager.sizeState {
-        case .unknown:
-            return String(localized: "Unknown")
-        case .loading:
-            return String(localized: "Loading…")
-        case .ready(_, let text):
-            return text
-        case .error:
-            return String(localized: "Unknown")
-        }
-    }
-
     private func downloadProgressText(completed: Int64, total: Int64) -> String {
         let completedText = Self.byteFormatter.string(fromByteCount: completed)
         if total > 0 {
@@ -540,6 +530,26 @@ struct ModelSettingsView: View {
         let url = useHfMirror ? MLXModelManager.mirrorHubBaseURL : MLXModelManager.defaultHubBaseURL
         mlxModelManager.updateHubBaseURL(url)
         customLLMManager.updateHubBaseURL(url)
+    }
+
+    private func modelLocalizedDescription(for repo: String) -> LocalizedStringKey {
+        switch MLXModelManager.canonicalModelRepo(repo) {
+        case "mlx-community/Qwen3-ASR-0.6B-4bit":
+            return "Balanced quality and speed with low memory use."
+        case "mlx-community/Qwen3-ASR-1.7B-bf16":
+            return "High accuracy flagship model with higher memory usage."
+        case "mlx-community/Voxtral-Mini-4B-Realtime-2602-fp16":
+            return "Realtime-oriented model with larger memory footprint."
+        case "mlx-community/parakeet-tdt-0.6b-v3":
+            return "Fast, lightweight English STT."
+        case "mlx-community/GLM-ASR-Nano-2512-4bit":
+            return "Smallest footprint for quick drafts."
+        default:
+            if let model = MLXModelManager.availableModels.first(where: { $0.id == repo }) {
+                return LocalizedStringKey(model.description)
+            }
+            return LocalizedStringKey("")
+        }
     }
 }
 

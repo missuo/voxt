@@ -116,6 +116,11 @@
 "Selected model size:" = "選択モデルサイズ:";
 "Use China mirror" = "中国ミラーを使用";
 "Download from https://hf-mirror.com/" = "https://hf-mirror.com/ からダウンロード";
+"Balanced quality and speed with low memory use." = "低メモリ使用で速度と精度のバランスが良いモデルです。";
+"High accuracy flagship model with higher memory usage." = "高いメモリ使用量で最高精度を狙うモデルです。";
+"Realtime-oriented model with larger memory footprint." = "リアルタイム向けで、メモリ使用量は大きめです。";
+"Fast, lightweight English STT." = "高速で軽量な英語向け STT モデルです。";
+"Smallest footprint for quick drafts." = "最小フットプリントで素早い下書きに向いています。";
 "Downloading: %d%% • %@" = "ダウンロード中: %d%% • %@";
 "System Prompt" = "システムプロンプト";
 "Customise how Apple Intelligence enhances your transcriptions." = "Apple Intelligence による文字起こし強化の方法を設定します。";

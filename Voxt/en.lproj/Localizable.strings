@@ -116,6 +116,11 @@
 "Selected model size:" = "Selected model size:";
 "Use China mirror" = "Use China mirror";
 "Download from https://hf-mirror.com/" = "Download from https://hf-mirror.com/";
+"Balanced quality and speed with low memory use." = "Balanced quality and speed with low memory use.";
+"High accuracy flagship model with higher memory usage." = "High accuracy flagship model with higher memory usage.";
+"Realtime-oriented model with larger memory footprint." = "Realtime-oriented model with larger memory footprint.";
+"Fast, lightweight English STT." = "Fast, lightweight English STT.";
+"Smallest footprint for quick drafts." = "Smallest footprint for quick drafts.";
 "Downloading: %d%% • %@" = "Downloading: %d%% • %@";
 "System Prompt" = "System Prompt";
 "Customise how Apple Intelligence enhances your transcriptions." = "Customise how Apple Intelligence enhances your transcriptions.";

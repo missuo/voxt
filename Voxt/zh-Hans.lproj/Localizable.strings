@@ -116,6 +116,11 @@
 "Selected model size:" = "所选模型大小：";
 "Use China mirror" = "使用中国镜像";
 "Download from https://hf-mirror.com/" = "从 https://hf-mirror.com/ 下载";
+"Balanced quality and speed with low memory use." = "在较低内存占用下，兼顾速度与识别质量。";
+"High accuracy flagship model with higher memory usage." = "更高内存占用，提供旗舰级识别准确率。";
+"Realtime-oriented model with larger memory footprint." = "偏实时场景，内存占用更大。";
+"Fast, lightweight English STT." = "轻量且快速的英文语音转文本模型。";
+"Smallest footprint for quick drafts." = "占用最小，适合快速草稿转录。";
 "Downloading: %d%% • %@" = "下载中：%d%% • %@";
 "System Prompt" = "系统提示词";
 "Customise how Apple Intelligence enhances your transcriptions." = "自定义 Apple Intelligence 如何增强你的转录文本。";
